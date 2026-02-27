@@ -9,12 +9,13 @@ import me.mrgeneralq.sleepmost.core.statics.ServerVersion;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
-import org.bukkit.scheduler.BukkitRunnable;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import java.util.function.Consumer;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class NightcycleAnimationTask extends BukkitRunnable {
+public class NightcycleAnimationTask implements Consumer<ScheduledTask> {
 
     private final ISleepService sleepService;
     private final DataContainer dataContainer = DataContainer.getContainer();
@@ -29,7 +30,10 @@ public class NightcycleAnimationTask extends BukkitRunnable {
     private final List<OfflinePlayer> peopleWhoSlept;
     private int iterationCount = 1;
 
-    public NightcycleAnimationTask(ISleepService sleepService, IFlagsRepository flagsRepository, World world, Player lastSleeper, List<OfflinePlayer> peopleWhoSlept, SleepSkipCause sleepSkipCause, ISleepMostWorldService sleepMostWorldService, IMessageService messageService, IConfigService configService) {
+    public NightcycleAnimationTask(ISleepService sleepService, IFlagsRepository flagsRepository, World world,
+            Player lastSleeper, List<OfflinePlayer> peopleWhoSlept, SleepSkipCause sleepSkipCause,
+            ISleepMostWorldService sleepMostWorldService, IMessageService messageService,
+            IConfigService configService) {
         this.sleepService = sleepService;
         this.flagsRepository = flagsRepository;
         this.world = world;
@@ -44,13 +48,13 @@ public class NightcycleAnimationTask extends BukkitRunnable {
     }
 
     @Override
-    public void run() {
-        //85 by default
+    public void accept(ScheduledTask task) {
+        // 85 by default
         final int baseSpeed = configService.getNightcycleAnimationSpeed();
         final int maxSpeed = configService.getNightcycleAnimationSpeedMax();
         int calculatedSpeed = baseSpeed;
 
-        if(this.flagsRepository.getDynamicAnimationSpeedFlag().getValueAt(world)){
+        if (this.flagsRepository.getDynamicAnimationSpeedFlag().getValueAt(world)) {
 
             int sleepingPlayers = this.sleepService.getSleepersAmount(world);
             int minSleepingPlayers = this.sleepService.getRequiredSleepersCount(world);
@@ -58,35 +62,40 @@ public class NightcycleAnimationTask extends BukkitRunnable {
 
             int numerator = Math.max(sleepingPlayers - minSleepingPlayers, 0);
             int denominator = Math.max(totalPlayers - minSleepingPlayers, 1);
-            double additionalPlayersRatio = (double)numerator / (double)denominator;
+            double additionalPlayersRatio = (double) numerator / (double) denominator;
 
             int minSpeed = baseSpeed;
 
-            calculatedSpeed = Math.min((int) Math.round((additionalPlayersRatio * (maxSpeed - minSpeed)) + minSpeed), maxSpeed);
+            calculatedSpeed = Math.min((int) Math.round((additionalPlayersRatio * (maxSpeed - minSpeed)) + minSpeed),
+                    maxSpeed);
 
         }
         world.setTime(world.getTime() + calculatedSpeed);
-        //CANCEL iF animation is no longer supposed to run
+        // CANCEL iF animation is no longer supposed to run
         SleepMostWorld sleepMostWorld = this.sleepMostWorldService.getWorld(world);
-        if(!this.flagsRepository.getForceNightcycleAnimationFlag().getValueAt(world) && !sleepService.isRequiredCountReached(world) && sleepService.isNight(world)){
+        if (!this.flagsRepository.getForceNightcycleAnimationFlag().getValueAt(world)
+                && !sleepService.isRequiredCountReached(world) && sleepService.isNight(world)) {
             sleepMostWorld.setTimeCycleAnimationIsRunning(false);
-            this.cancel();
+            task.cancel();
             return;
         }
 
-        if(!sleepService.isNight(world)){
+        if (!sleepService.isNight(world)) {
             sleepMostWorld.setTimeCycleAnimationIsRunning(false);
 
-            this.sleepService.executeSleepReset(world, this.lastSleeperName, this.lastSleeperDisplayName, this.peopleWhoSlept, this.skipCause);
-            this.cancel();
+            this.sleepService.executeSleepReset(world, this.lastSleeperName, this.lastSleeperDisplayName,
+                    this.peopleWhoSlept, this.skipCause);
+            task.cancel();
 
-            if(this.flagsRepository.getClockAnimationFlag().getValueAt(world) && ServerVersion.CURRENT_VERSION.supportsTitles() && skipCause == SleepSkipCause.NIGHT_TIME){
+            if (this.flagsRepository.getClockAnimationFlag().getValueAt(world)
+                    && ServerVersion.CURRENT_VERSION.supportsTitles() && skipCause == SleepSkipCause.NIGHT_TIME) {
 
-                List<Player> playerList = (flagsRepository.getNonSleepingClockAnimationFlag().getValueAt(world) ?
-                        world.getPlayers():
-                        peopleWhoSlept.stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer).collect(Collectors.toList()));
+                List<Player> playerList = (flagsRepository.getNonSleepingClockAnimationFlag().getValueAt(world)
+                        ? world.getPlayers()
+                        : peopleWhoSlept.stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer)
+                                .collect(Collectors.toList()));
 
-                for(Player p: playerList){
+                for (Player p : playerList) {
                     String clockTitle = this.messageService.getMessage(MessageKey.CLOCK_TITLE)
                             .setTime(0)
                             .build();
@@ -94,23 +103,26 @@ public class NightcycleAnimationTask extends BukkitRunnable {
                     String clockSubTitle = this.messageService.getMessage(MessageKey.CLOCK_SUBTITLE)
                             .build();
 
-                    p.sendTitle(clockTitle, clockSubTitle, 0,70,20);
+                    p.sendTitle(clockTitle, clockSubTitle, 0, 70, 20);
                 }
             }
 
-        }else{
+        } else {
 
-            /* **************************************************
-             *  All code in this block only runs during the night
+            /*
+             * **************************************************
+             * All code in this block only runs during the night
              ***************************************************/
 
-            if(this.flagsRepository.getClockAnimationFlag().getValueAt(world) && ServerVersion.CURRENT_VERSION.supportsTitles()){
+            if (this.flagsRepository.getClockAnimationFlag().getValueAt(world)
+                    && ServerVersion.CURRENT_VERSION.supportsTitles()) {
 
-                List<Player> playerList = (flagsRepository.getNonSleepingClockAnimationFlag().getValueAt(world) ?
-                        world.getPlayers():
-                        peopleWhoSlept.stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer).collect(Collectors.toList()));
+                List<Player> playerList = (flagsRepository.getNonSleepingClockAnimationFlag().getValueAt(world)
+                        ? world.getPlayers()
+                        : peopleWhoSlept.stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer)
+                                .collect(Collectors.toList()));
 
-                for(Player p: playerList){
+                for (Player p : playerList) {
 
                     String clockTitle = this.messageService.getMessage(MessageKey.CLOCK_TITLE)
                             .setTime((int) world.getTime())
@@ -119,7 +131,7 @@ public class NightcycleAnimationTask extends BukkitRunnable {
                     String clockSubTitle = this.messageService.getMessage(MessageKey.CLOCK_SUBTITLE)
                             .build();
 
-                    p.sendTitle(clockTitle, clockSubTitle, 0,70,20);
+                    p.sendTitle(clockTitle, clockSubTitle, 0, 70, 20);
                 }
             }
         }

@@ -18,7 +18,6 @@ import org.bukkit.*;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import me.mrgeneralq.sleepmost.core.enums.SleepSkipCause;
 import me.mrgeneralq.sleepmost.core.events.SleepSkipEvent;
@@ -39,12 +38,11 @@ public class SleepSkipEventListener implements Listener {
     private final DataContainer dataContainer = DataContainer.getContainer();
 
     public SleepSkipEventListener(IMessageService messageService,
-                                  IConfigService configService,
-                                  ISleepService sleepService,
-                                  IFlagsRepository flagsRepository,
-                                  IBossBarService bossBarService,
-                                  IHookService hooksService
-    ) {
+            IConfigService configService,
+            ISleepService sleepService,
+            IFlagsRepository flagsRepository,
+            IBossBarService bossBarService,
+            IHookService hooksService) {
 
         this.messageService = messageService;
         this.configService = configService;
@@ -63,32 +61,27 @@ public class SleepSkipEventListener implements Listener {
             return;
 
         /*
-        * Decide which players should be phantom reset when the night skips
-        */
+         * Decide which players should be phantom reset when the night skips
+         */
         SleepersOrAllType resetAudience = this.flagsRepository.getPhantomResetAudienceFlag().getValueAt(world);
 
         List<OfflinePlayer> playersToResetPhantom;
-        if(resetAudience == SleepersOrAllType.SLEEPERS)
+        if (resetAudience == SleepersOrAllType.SLEEPERS)
             playersToResetPhantom = e.getPeopleWhoSlept();
         else
-            playersToResetPhantom = e.getWorld().getPlayers().stream().map(p -> Bukkit.getOfflinePlayer(p.getUniqueId())).collect(Collectors.toList());
+            playersToResetPhantom = e.getWorld().getPlayers().stream()
+                    .map(p -> Bukkit.getOfflinePlayer(p.getUniqueId())).collect(Collectors.toList());
 
-
-        if(this.flagsRepository.getResetTimeSinceRestFlag().getValueAt(world)){
+        if (this.flagsRepository.getResetTimeSinceRestFlag().getValueAt(world)) {
             resetPhantomCounter(world, playersToResetPhantom);
         }
 
         sendSkipSound(world, e);
 
         if (ServerVersion.CURRENT_VERSION.supportsTitles()) {
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    sendSkipTitle(world, e);
-                }
-            }.runTaskLater(Sleepmost.getInstance(), 5);
+            Bukkit.getGlobalRegionScheduler().runDelayed(Sleepmost.getInstance(), task -> sendSkipTitle(world, e), 5L);
         }
-        
+
         boolean shouldHeal = flagsRepository.getHealFlag().getValueAt(world);
         boolean shouldFeed = flagsRepository.getFeedFlag().getValueAt(world);
 
@@ -96,7 +89,7 @@ public class SleepSkipEventListener implements Listener {
 
         sleepingPlayers.forEach(p -> {
 
-            if(p.isOnline()){
+            if (p.isOnline()) {
                 if (shouldHeal)
                     ServerVersion.CURRENT_VERSION.healToMaxHP(p.getPlayer());
 
@@ -108,23 +101,26 @@ public class SleepSkipEventListener implements Listener {
 
         List<OfflinePlayer> playersWhoSlept = e.getPeopleWhoSlept();
 
-        //if the flag is set to "sleepers" only, we only send the message to the players who slept
-        if(this.flagsRepository.getSkipMsgAudienceFlag().getValueAt(world) == SleepersOrAllType.SLEEPERS){
-            this.messageService.sendNightSkippedMessage(playersWhoSlept, world, e.getLastSleeperName(), e.getLastSleeperDisplayName(), e.getCause());
-        }else{
-            this.messageService.sendNightSkippedMessage(world, e.getLastSleeperName(), e.getLastSleeperDisplayName(), e.getCause());
+        // if the flag is set to "sleepers" only, we only send the message to the
+        // players who slept
+        if (this.flagsRepository.getSkipMsgAudienceFlag().getValueAt(world) == SleepersOrAllType.SLEEPERS) {
+            this.messageService.sendNightSkippedMessage(playersWhoSlept, world, e.getLastSleeperName(),
+                    e.getLastSleeperDisplayName(), e.getCause());
+        } else {
+            this.messageService.sendNightSkippedMessage(world, e.getLastSleeperName(), e.getLastSleeperDisplayName(),
+                    e.getCause());
         }
 
         this.sleepService.clearSleepersAt(world);
 
-        if(ServerVersion.CURRENT_VERSION.supportsBossBars()){
+        if (ServerVersion.CURRENT_VERSION.supportsBossBars()) {
             this.bossBarService.setVisible(world, false);
         }
 
-
         Optional<Hook> optionalGsitHook = this.hookService.getHook(SleepMostHook.GSIT);
-        //GSit, disble sleep
-        if (optionalGsitHook.isPresent() &&  this.flagsRepository.getGSitHookFlag().getValueAt(world) && this.flagsRepository.getGSitSleepFlag().getValueAt(world)) {
+        // GSit, disble sleep
+        if (optionalGsitHook.isPresent() && this.flagsRepository.getGSitHookFlag().getValueAt(world)
+                && this.flagsRepository.getGSitSleepFlag().getValueAt(world)) {
             GsitHook gsitHook = (GsitHook) optionalGsitHook.get();
 
             for (OfflinePlayer player : playersWhoSlept) {
@@ -141,36 +137,39 @@ public class SleepSkipEventListener implements Listener {
          * in older versions of Minecraft
          */
         try {
-            for (Player p : playersWhoSlept.stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer).collect(Collectors.toList()))
+            for (Player p : playersWhoSlept.stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer)
+                    .collect(Collectors.toList()))
                 p.setStatistic(Statistic.TIME_SINCE_REST, 0);
         } catch (NoSuchFieldError error) {
             // statistic did not exist yet in some versions
         }
     }
 
-    private void sendSkipTitle(World world , SleepSkipEvent e) {
+    private void sendSkipTitle(World world, SleepSkipEvent e) {
 
         SleepSkipCause cause = e.getCause();
 
-        boolean titleEnabled = (cause == NIGHT_TIME ? this.flagsRepository.getUseTitleNightSkippedFlag().getValueAt(world) :
-                this.flagsRepository.getUseTitleStormSkippedFlag().getValueAt(world));
+        boolean titleEnabled = (cause == NIGHT_TIME
+                ? this.flagsRepository.getUseTitleNightSkippedFlag().getValueAt(world)
+                : this.flagsRepository.getUseTitleStormSkippedFlag().getValueAt(world));
 
         if (!titleEnabled) {
             return;
         }
 
         String nightSkippedTitle = messageService.getMessage(MessageKey.NIGHT_SKIPPED_TITLE).setWorld(world).build();
-        String nightSkippedSubtitle = messageService.getMessage(MessageKey.NIGHT_SKIPPED_SUBTITLE).setWorld(world).build();
+        String nightSkippedSubtitle = messageService.getMessage(MessageKey.NIGHT_SKIPPED_SUBTITLE).setWorld(world)
+                .build();
         String stormSkippedTitle = messageService.getMessage(MessageKey.STORM_SKIPPED_TITLE).setWorld(world).build();
-        String stormSkippedSubtitle = messageService.getMessage(MessageKey.STORM_SKIPPED_SUBTITLE).setWorld(world).build();
-
+        String stormSkippedSubtitle = messageService.getMessage(MessageKey.STORM_SKIPPED_SUBTITLE).setWorld(world)
+                .build();
 
         String skippedTitle = (cause == NIGHT_TIME ? nightSkippedTitle : stormSkippedTitle);
         String skippedSubtitle = (cause == NIGHT_TIME ? nightSkippedSubtitle : stormSkippedSubtitle);
 
-        List<Player> playerList = (flagsRepository.getNonSleepingTitleFlag().getValueAt(world) ?
-                world.getPlayers():
-                e.getPeopleWhoSlept().stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer).collect(Collectors.toList()));
+        List<Player> playerList = (flagsRepository.getNonSleepingTitleFlag().getValueAt(world) ? world.getPlayers()
+                : e.getPeopleWhoSlept().stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer)
+                        .collect(Collectors.toList()));
 
         for (Player p : playerList) {
 
@@ -193,13 +192,14 @@ public class SleepSkipEventListener implements Listener {
 
     private void sendSkipSound(World world, SleepSkipEvent e) throws InvalidSleepSkipCauseOccurredException {
         SleepSkipCause cause = e.getCause();
-        if (!this.getSkipSoundEnabledFlag(cause).getValueAt(world)) return;
+        if (!this.getSkipSoundEnabledFlag(cause).getValueAt(world))
+            return;
 
         String skipSound = this.getSkipSoundFlag(cause).getValueAt(world);
 
-        List<Player> playerList = (flagsRepository.getNonSleepingSoundFlag().getValueAt(world) ?
-                world.getPlayers():
-                e.getPeopleWhoSlept().stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer).collect(Collectors.toList()));
+        List<Player> playerList = (flagsRepository.getNonSleepingSoundFlag().getValueAt(world) ? world.getPlayers()
+                : e.getPeopleWhoSlept().stream().filter(OfflinePlayer::isOnline).map(OfflinePlayer::getPlayer)
+                        .collect(Collectors.toList()));
 
         for (Player p : playerList) {
             p.playSound(p.getLocation(), skipSound, 0.4F, 1F);
@@ -208,8 +208,10 @@ public class SleepSkipEventListener implements Listener {
 
     /**
      * Get the appropriate sound enabled flag for this cause.
+     * 
      * @param cause Cause of skip event.
-     * @return UseSkipSoundFlag for this cause. Defaults to flag with false for default.
+     * @return UseSkipSoundFlag for this cause. Defaults to flag with false for
+     *         default.
      */
     private UseSkipSoundFlag getSkipSoundEnabledFlag(SleepSkipCause cause) {
         switch (cause) {
@@ -218,7 +220,8 @@ public class SleepSkipEventListener implements Listener {
             case STORM:
                 return flagsRepository.getUseSoundStormSkippedFlag();
             default:
-                return new UseSkipSoundFlag("HARDCODED_FLAG", false, null) {};
+                return new UseSkipSoundFlag("HARDCODED_FLAG", false, null) {
+                };
         }
     }
 
@@ -227,7 +230,8 @@ public class SleepSkipEventListener implements Listener {
      *
      * @param cause Cause of skip event.
      * @return Resource key for the sound used.
-     * @throws InvalidSleepSkipCauseOccurredException because no valid cause were found.
+     * @throws InvalidSleepSkipCauseOccurredException because no valid cause were
+     *                                                found.
      */
     private SkipSoundFlag getSkipSoundFlag(SleepSkipCause cause) throws InvalidSleepSkipCauseOccurredException {
         switch (cause) {

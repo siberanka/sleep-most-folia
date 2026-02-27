@@ -26,7 +26,8 @@ public class PlayerJoinEventListener implements Listener {
 
     private static final String UPDATE_PERMISSION = "sleepmost.alerts.update";
 
-    public PlayerJoinEventListener(Plugin plugin, IUpdateService updateService, IMessageService messageService, IBossBarService bossBarService, ISleepMostPlayerService sleepMostPlayerService) {
+    public PlayerJoinEventListener(Plugin plugin, IUpdateService updateService, IMessageService messageService,
+            IBossBarService bossBarService, ISleepMostPlayerService sleepMostPlayerService) {
         this.plugin = plugin;
         this.updateService = updateService;
         this.messageService = messageService;
@@ -39,28 +40,29 @@ public class PlayerJoinEventListener implements Listener {
 
         Player player = e.getPlayer();
 
-        //if player does not exist yet, register. Avoid players disconnecting and reconnecting to reset their profile
-        if(!this.sleepMostPlayerService.playerExists(player))
-        this.sleepMostPlayerService.registerNewPlayer(player);
+        // if player does not exist yet, register. Avoid players disconnecting and
+        // reconnecting to reset their profile
+        if (!this.sleepMostPlayerService.playerExists(player))
+            this.sleepMostPlayerService.registerNewPlayer(player);
 
-
-        if(ServerVersion.CURRENT_VERSION.supportsBossBars())
-        this.bossBarService.registerPlayer(player.getWorld(), player);
+        if (ServerVersion.CURRENT_VERSION.supportsBossBars())
+            this.bossBarService.registerPlayer(player.getWorld(), player);
 
         if (!player.hasPermission(UPDATE_PERMISSION))
             return;
 
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () ->
-        {
-            if(updateService.hasUpdate())
+        Bukkit.getAsyncScheduler().runNow(plugin, task -> {
+            if (updateService.hasUpdate())
                 notifyNewUpdate(player);
         });
     }
+
     private void notifyNewUpdate(CommandSender sender) {
         sender.sendMessage(colorize("&b==============================================="));
-        sender.sendMessage(messageService.getMessagePrefixed("&bA newer version of &esleep-most &bis available: &e%updateLink%")
-                .setPlaceHolder("%updateLink%", updateService.getCachedUpdateVersion())
-                .build());
+        sender.sendMessage(
+                messageService.getMessagePrefixed("&bA newer version of &esleep-most &bis available: &e%updateLink%")
+                        .setPlaceHolder("%updateLink%", updateService.getCachedUpdateVersion())
+                        .build());
         sender.sendMessage(ChatColor.GREEN + ServerVersion.UPDATE_URL);
         sender.sendMessage(colorize("&eYou may ignore this message if you just updated (spigot takes some time)"));
         sender.sendMessage(colorize("&b==============================================="));

@@ -35,3 +35,8 @@ bin/*
 target/
 
 dependency-reduced-pom.xml
+
+# IDE & OS
+.idea/
+.vscode/
+.DS_Store

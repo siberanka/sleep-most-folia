@@ -9,3 +9,4 @@ commands:
     description: open the sleepmost help menu
     aliases: [sm]
 softdepend: [PlaceholderAPI, GSit, SuperVanish, PremiumVanish, Essentials]
+folia-supported: true
