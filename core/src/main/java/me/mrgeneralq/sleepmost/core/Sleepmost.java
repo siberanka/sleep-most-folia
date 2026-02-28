@@ -156,7 +156,9 @@ public class Sleepmost extends JavaPlugin {
 					&& this.bootstrapper.getSleepService().isEnabledAt(world)) {
 				if (this.bootstrapper.getFlagsRepository().getDisableDaylightcycleGamerule().getValueAt(world)) {
 					IGameRuleService gameRuleService = bootstrapper.getGameRuleService();
-					gameRuleService.setAdvanceTime(world, true);
+					Bukkit.getRegionScheduler().runDelayed(this, world, 0, 0, task -> {
+						gameRuleService.setAdvanceTime(world, true);
+					}, 1L);
 				}
 			}
 		}
@@ -172,7 +174,11 @@ public class Sleepmost extends JavaPlugin {
 			IInsomniaService insomniaService) {
 		Heartbeat heartbeat = new Heartbeat(sleepService, sleepMostWorldService, insomniaService,
 				bootstrapper.getFlagsRepository());
-		Bukkit.getGlobalRegionScheduler().runAtFixedRate(this, task -> heartbeat.run(), 20L, 20L);
+		for (World world : Bukkit.getWorlds()) {
+			Bukkit.getRegionScheduler().runAtFixedRate(this, world, 0, 0, task -> {
+				heartbeat.runForWorld(world);
+			}, 20L, 20L);
+		}
 	}
 
 	private void notifyIfNewUpdateExists(IUpdateService updateService) {

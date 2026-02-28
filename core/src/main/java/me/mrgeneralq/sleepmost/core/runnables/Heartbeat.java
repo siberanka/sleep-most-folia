@@ -16,7 +16,7 @@ import org.bukkit.entity.Player;
 import java.util.Calendar;
 import java.util.stream.Collectors;
 
-public class Heartbeat implements Runnable {
+public class Heartbeat {
 
     private final ISleepService sleepService;
     private final IInsomniaService insomniaService;
@@ -31,26 +31,23 @@ public class Heartbeat implements Runnable {
         this.flagsRepository = flagsRepository;
     }
 
-    @Override
-    public void run() {
+    public void runForWorld(World world) {
+        if (!this.sleepService.isEnabledAt(world))
+            return;
+        updateTimeCycle(world);
 
-        for (World world : Bukkit.getWorlds().stream().filter(this.sleepService::isEnabledAt)
-                .collect(Collectors.toList())) {
-            updateTimeCycle(world);
+        if (ServerVersion.CURRENT_VERSION.supportsGameRules()) {
+            checkPlannedFreezeRequired(world);
+            checkInsomniaResetRequired(world);
+            checkFreezeRequired(world);
+            checkUnfreezeRequired(world);
+        }
 
-            if (ServerVersion.CURRENT_VERSION.supportsGameRules()) {
-                checkPlannedFreezeRequired(world);
-                checkInsomniaResetRequired(world);
-                checkFreezeRequired(world);
-                checkUnfreezeRequired(world);
-            }
-
-            SleepSkipCause cause = this.sleepService.getCurrentSkipCause(world);
-            if (cause == SleepSkipCause.UNKNOWN || cause == null) {
-                for (Player p : world.getPlayers().stream().filter(this.sleepService::isPlayerAsleep)
-                        .collect(Collectors.toList())) {
-                    this.sleepService.setSleeping(p, false);
-                }
+        SleepSkipCause cause = this.sleepService.getCurrentSkipCause(world);
+        if (cause == SleepSkipCause.UNKNOWN || cause == null) {
+            for (Player p : world.getPlayers().stream().filter(this.sleepService::isPlayerAsleep)
+                    .collect(Collectors.toList())) {
+                this.sleepService.setSleeping(p, false);
             }
         }
     }

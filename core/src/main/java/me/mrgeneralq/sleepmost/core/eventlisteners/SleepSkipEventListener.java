@@ -79,7 +79,8 @@ public class SleepSkipEventListener implements Listener {
         sendSkipSound(world, e);
 
         if (ServerVersion.CURRENT_VERSION.supportsTitles()) {
-            Bukkit.getGlobalRegionScheduler().runDelayed(Sleepmost.getInstance(), task -> sendSkipTitle(world, e), 5L);
+            Bukkit.getRegionScheduler().runDelayed(Sleepmost.getInstance(), world, 0, 0,
+                    task -> sendSkipTitle(world, e), 5L);
         }
 
         boolean shouldHeal = flagsRepository.getHealFlag().getValueAt(world);

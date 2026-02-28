@@ -7,6 +7,6 @@ import org.bukkit.World;
 public class PaperGameRuleService implements IGameRuleService {
     @Override
     public void setAdvanceTime(World world, boolean value) {
-        world.setGameRule(GameRules.ADVANCE_TIME, value);
+        world.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, value);
     }
 }
